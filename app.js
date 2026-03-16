@@ -5,6 +5,7 @@ const displayImageBg = document.getElementById('display-image-bg');
 const imageLightbox = document.getElementById('image-lightbox');
 const lightboxImage = document.getElementById('lightbox-image');
 const lightboxClose = document.getElementById('lightbox-close');
+const DEFAULT_IMAGE_PATH = 'res/oneshot.png';
 const DATABASE_NAME = 'oneshot-image-store';
 const STORE_NAME = 'images';
 const IMAGE_KEY = 'uploaded-image';
@@ -20,6 +21,13 @@ function revokeCurrentObjectUrl() {
 
 function setDisplayedImage(src) {
   displayImage.src = src;
+  if (src.includes(DEFAULT_IMAGE_PATH)) {
+    displayImage.classList.remove('object-contain');
+    displayImage.classList.add('object-cover');
+  } else {
+    displayImage.classList.remove('object-cover');
+    displayImage.classList.add('object-contain');
+  }
 }
 
 function openDatabase() {
