@@ -4,6 +4,96 @@ const displayImageBg = document.getElementById('display-image-bg');
 const imageLightbox = document.getElementById('image-lightbox');
 const lightboxImage = document.getElementById('lightbox-image');
 const lightboxClose = document.getElementById('lightbox-close');
+const DATABASE_NAME = 'husk-image-store';
+const STORE_NAME = 'images';
+const IMAGE_KEY = 'uploaded-image';
+
+let currentObjectUrl = null;
+
+function revokeCurrentObjectUrl() {
+  if (currentObjectUrl) {
+    URL.revokeObjectURL(currentObjectUrl);
+    currentObjectUrl = null;
+  }
+}
+
+function setDisplayedImage(src) {
+  displayImage.src = src;
+}
+
+function openDatabase() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(DATABASE_NAME, 1);
+
+    request.addEventListener('upgradeneeded', () => {
+      const database = request.result;
+
+      if (!database.objectStoreNames.contains(STORE_NAME)) {
+        database.createObjectStore(STORE_NAME);
+      }
+    });
+
+    request.addEventListener('success', () => resolve(request.result));
+    request.addEventListener('error', () => reject(request.error));
+  });
+}
+
+async function saveImage(file) {
+  const database = await openDatabase();
+
+  return new Promise((resolve, reject) => {
+    const transaction = database.transaction(STORE_NAME, 'readwrite');
+    const store = transaction.objectStore(STORE_NAME);
+
+    transaction.addEventListener('complete', () => {
+      database.close();
+      resolve();
+    });
+
+    transaction.addEventListener('error', () => {
+      database.close();
+      reject(transaction.error);
+    });
+
+    store.put(file, IMAGE_KEY);
+  });
+}
+
+async function loadSavedImage() {
+  const database = await openDatabase();
+
+  return new Promise((resolve, reject) => {
+    const transaction = database.transaction(STORE_NAME, 'readonly');
+    const store = transaction.objectStore(STORE_NAME);
+    const request = store.get(IMAGE_KEY);
+
+    request.addEventListener('success', () => {
+      database.close();
+      resolve(request.result || null);
+    });
+
+    request.addEventListener('error', () => {
+      database.close();
+      reject(request.error);
+    });
+  });
+}
+
+async function restoreImage() {
+  try {
+    const savedImage = await loadSavedImage();
+
+    if (!savedImage) {
+      return;
+    }
+
+    revokeCurrentObjectUrl();
+    currentObjectUrl = URL.createObjectURL(savedImage);
+    setDisplayedImage(currentObjectUrl);
+  } catch (error) {
+    console.error('Failed to restore saved image', error);
+  }
+}
 
 function openLightbox() {
   if (!imageLightbox || !lightboxImage) {
@@ -70,27 +160,26 @@ document.addEventListener('keydown', (event) => {
 imageInput.addEventListener('change', function() {
   const file = this.files[0];
   if (file) {
-    const reader = new FileReader();
-    reader.onload = function(e) {
-      displayImage.src = e.target.result;
-      // Optionally, store in localStorage to persist
-      localStorage.setItem('uploadedImage', e.target.result);
-    }
-    reader.readAsDataURL(file);
+    revokeCurrentObjectUrl();
+    currentObjectUrl = URL.createObjectURL(file);
+    setDisplayedImage(currentObjectUrl);
+
+    saveImage(file).catch((error) => {
+      console.error('Failed to save image', error);
+    });
   }
 });
 
 // Load saved image on start
-window.addEventListener('load', () => {
-  const savedImage = localStorage.getItem('uploadedImage');
-  if (savedImage) {
-    displayImage.src = savedImage;
-  }
+window.addEventListener('load', async () => {
+  await restoreImage();
 
   if (displayImage.complete) {
     syncPreviewBackground();
   }
 });
+
+window.addEventListener('beforeunload', revokeCurrentObjectUrl);
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
