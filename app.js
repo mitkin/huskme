@@ -160,6 +160,15 @@ document.addEventListener('keydown', (event) => {
   }
 });
 
+async function requestPersistentStorage() {
+  if (navigator.storage && navigator.storage.persist) {
+    const granted = await navigator.storage.persist();
+    if (!granted) {
+      console.warn('Persistent storage not granted — image may be evicted by the browser.');
+    }
+  }
+}
+
 imageInput.addEventListener('change', function() {
   const file = this.files[0];
   if (file) {
@@ -167,6 +176,7 @@ imageInput.addEventListener('change', function() {
     currentObjectUrl = URL.createObjectURL(file);
     setDisplayedImage(currentObjectUrl);
 
+    requestPersistentStorage();
     saveImage(file).catch((error) => {
       console.error('Failed to save image', error);
     });
