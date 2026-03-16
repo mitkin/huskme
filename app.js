@@ -1,4 +1,5 @@
 const imageInput = document.getElementById('image-input');
+const cameraInput = document.getElementById('camera-input');
 const displayImage = document.getElementById('display-image');
 const displayImageBg = document.getElementById('display-image-bg');
 const imageLightbox = document.getElementById('image-lightbox');
@@ -169,19 +170,28 @@ async function requestPersistentStorage() {
   }
 }
 
-imageInput.addEventListener('change', function() {
-  const file = this.files[0];
-  if (file) {
-    revokeCurrentObjectUrl();
-    currentObjectUrl = URL.createObjectURL(file);
-    setDisplayedImage(currentObjectUrl);
+function handleFileSelected(file) {
+  if (!file) return;
+  revokeCurrentObjectUrl();
+  currentObjectUrl = URL.createObjectURL(file);
+  setDisplayedImage(currentObjectUrl);
+  requestPersistentStorage();
+  saveImage(file).catch((error) => {
+    console.error('Failed to save image', error);
+  });
+}
 
-    requestPersistentStorage();
-    saveImage(file).catch((error) => {
-      console.error('Failed to save image', error);
-    });
-  }
+imageInput.addEventListener('change', function() {
+  handleFileSelected(this.files[0]);
+  this.value = '';
 });
+
+if (cameraInput) {
+  cameraInput.addEventListener('change', function() {
+    handleFileSelected(this.files[0]);
+    this.value = '';
+  });
+}
 
 // Load saved image on start
 window.addEventListener('load', async () => {
