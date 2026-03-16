@@ -39,6 +39,8 @@ function openDatabase() {
 }
 
 async function saveImage(file) {
+  const buffer = await file.arrayBuffer();
+  const payload = { buffer, type: file.type };
   const database = await openDatabase();
 
   return new Promise((resolve, reject) => {
@@ -55,7 +57,7 @@ async function saveImage(file) {
       reject(transaction.error);
     });
 
-    store.put(file, IMAGE_KEY);
+    store.put(payload, IMAGE_KEY);
   });
 }
 
@@ -81,14 +83,15 @@ async function loadSavedImage() {
 
 async function restoreImage() {
   try {
-    const savedImage = await loadSavedImage();
+    const payload = await loadSavedImage();
 
-    if (!savedImage) {
+    if (!payload || !payload.buffer) {
       return;
     }
 
+    const blob = new Blob([payload.buffer], { type: payload.type || 'image/jpeg' });
     revokeCurrentObjectUrl();
-    currentObjectUrl = URL.createObjectURL(savedImage);
+    currentObjectUrl = URL.createObjectURL(blob);
     setDisplayedImage(currentObjectUrl);
   } catch (error) {
     console.error('Failed to restore saved image', error);
