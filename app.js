@@ -5,7 +5,7 @@ const displayImageBg = document.getElementById('display-image-bg');
 const imageLightbox = document.getElementById('image-lightbox');
 const lightboxImage = document.getElementById('lightbox-image');
 const lightboxClose = document.getElementById('lightbox-close');
-const DATABASE_NAME = 'husk-image-store';
+const DATABASE_NAME = 'oneshot-image-store';
 const STORE_NAME = 'images';
 const IMAGE_KEY = 'uploaded-image';
 
