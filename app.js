@@ -3,6 +3,7 @@ const DATABASE_NAME = 'oneshot-image-store';
 const STORE_NAME    = 'images';
 const CARDS_KEY     = 'oneshot-card-ids';
 const DEFAULT_IMAGE = 'res/oneshot.png';
+const IMAGE_TTL_MS  = 24 * 60 * 60 * 1000;
 const TOUCH_OR_COARSE_POINTER = window.matchMedia('(hover: none), (pointer: coarse)').matches;
 
 // ── IndexedDB helpers ─────────────────────────────────────────────────────────
@@ -22,7 +23,7 @@ function openDatabase() {
 
 async function saveCardImage(cardId, file) {
   const buffer = await file.arrayBuffer();
-  const payload = { buffer, type: file.type };
+  const payload = { buffer, type: file.type, savedAt: Date.now() };
   const db = await openDatabase();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, 'readwrite');
@@ -83,6 +84,18 @@ function setCardImage(card, src, isDefault) {
   imgBg.src = src;
   img.classList.toggle('object-cover',   isDefault);
   img.classList.toggle('object-contain', !isDefault);
+}
+
+function isExpiredPayload(payload) {
+  if (!payload || !payload.buffer) {
+    return false;
+  }
+
+  if (typeof payload.savedAt !== 'number') {
+    return false;
+  }
+
+  return Date.now() - payload.savedAt >= IMAGE_TTL_MS;
 }
 
 function hideAllDeleteButtons() {
@@ -300,24 +313,50 @@ window.addEventListener('load', async () => {
   let ids = getSavedCardIds();
   if (ids.length === 0) {
     ids = [generateCardId()];
-    saveCardIds(ids);
   }
 
+  const activeIds = [];
+
   for (const cardId of ids) {
+    let payload = null;
+
+    try {
+      payload = await loadCardImage(cardId);
+    } catch (err) {
+      console.error('Failed to restore image for card', cardId, err);
+    }
+
+    if (isExpiredPayload(payload)) {
+      deleteCardImage(cardId).catch((error) => {
+        console.error('Failed to delete expired image', error);
+      });
+      continue;
+    }
+
     const card = createCardElement(cardId);
     cardsContainer.appendChild(card);
-    try {
-      const payload = await loadCardImage(cardId);
-      if (payload && payload.buffer) {
+    activeIds.push(cardId);
+
+    if (payload && payload.buffer) {
+      try {
         const blob = new Blob([payload.buffer], { type: payload.type || 'image/jpeg' });
         const url  = URL.createObjectURL(blob);
         setCardObjectUrl(cardId, url);
         setCardImage(card, url, false);
+      } catch (err) {
+        console.error('Failed to render image for card', cardId, err);
       }
-    } catch (err) {
-      console.error('Failed to restore image for card', cardId, err);
     }
   }
+
+  if (activeIds.length === 0) {
+    const fallbackId = generateCardId();
+    const fallbackCard = createCardElement(fallbackId);
+    cardsContainer.appendChild(fallbackCard);
+    activeIds.push(fallbackId);
+  }
+
+  saveCardIds(activeIds);
 });
 
 // ── Service Worker ────────────────────────────────────────────────────────────
